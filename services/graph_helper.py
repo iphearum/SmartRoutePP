@@ -9,6 +9,7 @@ class GraphHelper:
         Get (latitude, longitude) from a serialized graph (JSON-style node_link_data).
         """
         nodes = self.graph.get("links", [])
+        
         for node in nodes: 
             if node.get('osmid') == osmid: 
                 return(node.get('source'), node.get('target'))
@@ -35,7 +36,7 @@ class GraphHelper:
         """
         Check if the point matches any node in the graph.
         """
-        for _, data in self.graph.nodes(data=True):
+        for data in self.graph.get("nodes"):
             node_point = Point(data['x'], data['y'])
             if point.equals(node_point):
                 return True
@@ -52,3 +53,14 @@ class GraphHelper:
         Compute the distance from the point to the edge geometry.
         """
         return edge_geometry.distance(point)
+    
+    # def convertToAdjList(self, lat, long): 
+    #     adj_list = {}
+    #     for u, v, data in G.edges(data=True): 
+    #         u_latlon = G.nodes[u]['y'], G.nodes[u]['x']
+    #         v_latlon = G.nodes[v]['y'], G.nodes[v]['x']
+    #         length = data.get('length', 1)
+
+    #         if u_latlon not in adj_list: 
+    #             adj_list=latlon = []
+    #         adj_list[u_latlong].append((v)latlon, length)

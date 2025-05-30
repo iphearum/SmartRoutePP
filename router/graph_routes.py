@@ -10,16 +10,42 @@ def serialize_linestring(obj):
         return list(obj.coords)
     return obj
 
+def get_data(G): 
+    data = json_graph.node_link_data(G, edges="links")
+    for edge in data.get("links", []): 
+        if "geometry" in edge: 
+            edge["geometry"] = serialize_linestring(edge["geometry"])
+    return data
 
 @router.get("/")
 def read_root(request: Request):
     G = request.app.state.G
-    data = json_graph.node_link_data(G, edges="links")  # ← Add this
-    for edge in data.get("links", []):
-        if "geometry" in edge:
-            edge["geometry"] = serialize_linestring(edge["geometry"])
-    return data
+    return get_data(G)
 
+@router.get("/adjlist")
+def get_adj_list(request: Request): 
+    G = request.app.state.G
+    data = get_data(G)
+    adj_list = {}
+
+    for edge in data.get("links", []): 
+        src = edge.get("source")
+        tgt = edge.get("target")
+        length = edge.get("length", 1)
+
+        # Print for debugging
+        print(f"Edge from {src} to {tgt}, length: {length}")
+
+        if src not in adj_list:
+            adj_list[src] = []
+        adj_list[src].append({"to": tgt, "length": length})
+
+    return adj_list
+
+@router.get("/x")
+def get_edges(request:Request): 
+    G = request.app.state.G
+    return G.edges
 
 @router.get("/test_point")
 def test_point_ops(request: Request, osmid: int):
@@ -49,3 +75,13 @@ def test_point_ops(request: Request, osmid: int):
             }
 
     return {"message": "No geometry found on edges"}
+
+
+@router.get('/getPoint')
+def get_point_from_id(request: Request, id: int): 
+    G = request.app.state.G 
+    data = json_graph.node_link_data(G, edges="nodes")
+    print(data)
+    return data
+    #88197173
+
