@@ -47,9 +47,9 @@ class GraphHelper:
         nodes = {n['id']: (n['x'], n['y']) for n in self.graph.get("nodes", [])}
         
         for edge in self.graph.get("links", []):
-            #If there is geometry
             if "geometry" in edge:
-                line = LineString(edge["geometry"]) 
+                coords = [(lon, lat) for lat, lon in edge["geometry"]]  # Reversed!
+                line = LineString(coords)
             else:
                 src = edge.get("source")
                 tgt = edge.get("target")
@@ -58,18 +58,14 @@ class GraphHelper:
                     tgt_coords = nodes[tgt]
                     line = LineString([src_coords, tgt_coords])
                 else:
-                    continue  # skip if source or target not found
+                    continue
 
             if line.distance(point) < tolerance:
                 return True
 
         return False
 
-    def is_point_on_edge(self, point: Point, edge_geometry: LineString) -> bool:
-        """
-        Check if the point lies exactly on the edge geometry.
-        """
-        return edge_geometry.distance(point) == 0
+
 
     def distance_to_edge(self, point: Point, edge_geometry: LineString) -> float:
         """

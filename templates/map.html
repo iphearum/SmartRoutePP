@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Map Point with Jinja2</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Point on Map</h2>
+<!-- Pass data using attributes -->
+<div id="map" data-lat="{{ lat }}" data-lon="{{ lon }}"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    const mapDiv = document.getElementById("map");
+    const lat = parseFloat(mapDiv.dataset.lat);
+    const lon = parseFloat(mapDiv.dataset.lon);
+
+    const map = L.map('map').setView([lat, lon], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const marker = L.marker([lat, lon]).addTo(map);
+    marker.bindPopup(`Latitude: ${lat}<br>Longitude: ${lon}`).openPopup();
+</script>
+
+</body>
+</html>

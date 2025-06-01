@@ -80,3 +80,12 @@ def get_point_from_id(request: Request, id: int):
     return getData
     #88197173
 
+@router.get("/on-edge")
+def is_on_edge(request: Request,lon: float, lat: float): 
+    G = request.app.state.G
+    data = get_data(G)  # Make sure this returns dict with 'nodes' and 'links'
+    graph = GraphHelper(data)  # or GraphHelper(G) if using raw graph
+    p = Point(lon, lat)
+    myresult = graph.is_point_on_edge(p) 
+    return {"result": myresult}
+
