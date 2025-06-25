@@ -5,28 +5,24 @@ class GraphHelper:
         self.graph = graph
 
     def get_point_from_osmid(self, osmid):
-        """
-        Get (latitude, longitude) from a serialized graph (JSON-style node_link_data).
-        """
-        nodes = self.graph.get("links", [])
-        
-        for node in nodes: 
-            if node.get('osmid') == osmid: 
-                return(node.get('source'), node.get('target'))
-            
+        links = self.graph.get("links", [])
+
+        for link in links: 
+            if link.get('osmid') == osmid: 
+                return {
+                    "source": link.get("sources"),
+                    "target": link.get("target")
+                }
         return None
     
     def create_point(self, latlon_tuple):
-        """
-        Convert (latitude, longitude) to a Shapely Point.
-        """
         if isinstance(latlon_tuple, (list, tuple)) and len(latlon_tuple) == 2:
             lat, lon = latlon_tuple
             return Point(lon, lat)  # x = lon, y = lat
         raise ValueError(f"Expected a tuple of (lat, lon), got: {latlon_tuple}")
     
     def get_point_from_node_id(self, id: int):
-        nodes = self.graph.get("nodes", [])
+        nodes = self.graph
         for node in nodes: 
             if node.get('id') == id: 
                 p = Point(node.get('y'), node.get('x'))
@@ -66,10 +62,4 @@ class GraphHelper:
         return False
 
 
-
-    def distance_to_edge(self, point: Point, edge_geometry: LineString) -> float:
-        """
-        Compute the distance from the point to the edge geometry.
-        """
-        return edge_geometry.distance(point)
     

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Map Route Input</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        input[type="number"] {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Input Start and End Coordinates</h2>
+<form method="GET" action="/">
+    <label>Start Latitude: <input type="number" step="any" name="start_lat" required></label>
+    <label>Start Longitude: <input type="number" step="any" name="start_lon" required></label><br>
+    <label>End Latitude: <input type="number" step="any" name="end_lat" required></label>
+    <label>End Longitude: <input type="number" step="any" name="end_lon" required></label><br>
+    <button type="submit">Show on Map</button>
+</form>
+
+<!-- Map Container -->
+<div id="map" 
+     data-start-lat="{{ start_lat }}" 
+     data-start-lon="{{ start_lon }}" 
+     data-end-lat="{{ end_lat }}" 
+     data-end-lon="{{ end_lon }}">
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    const mapDiv = document.getElementById("map");
+    const startLat = parseFloat(mapDiv.dataset.startLat);
+    const startLon = parseFloat(mapDiv.dataset.startLon);
+    const endLat = parseFloat(mapDiv.dataset.endLat);
+    const endLon = parseFloat(mapDiv.dataset.endLon);
+
+    const map = L.map('map').setView([(startLat + endLat)/2, (startLon + endLon)/2], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const startMarker = L.marker([startLat, startLon]).addTo(map);
+    startMarker.bindPopup(`Start<br>Lat: ${startLat}<br>Lon: ${startLon}`).openPopup();
+
+    const endMarker = L.marker([endLat, endLon]).addTo(map);
+    endMarker.bindPopup(`End<br>Lat: ${endLat}<br>Lon: ${endLon}`);
+
+    const routeLine = L.polyline([
+        [startLat, startLon],
+        [endLat, endLon]
+    ], { color: 'blue' }).addTo(map);
+</script>
+
+</body>
+</html>

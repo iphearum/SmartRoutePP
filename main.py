@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from router.graph_routes import router
+from api.graph_routes import router
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")  # Path to templates folder
