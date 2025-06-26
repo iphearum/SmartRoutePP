@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Route Map{% endblock %}
+
+{% block content %}
+<h2>Route Map from ID {{ start_id }} to {{ end_id }}</h2>
+<div id="map" style="height: 600px; width: 100%;"></div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script type="text/javascript">
+  // @ts-ignore
+  let geometry = {{ geometry | tojson | safe }};
+
+  if (!geometry || geometry.length === 0) {
+    alert("No route geometry found.");
+  } else {
+    const map = L.map('map').setView(geometry[0], 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    const polyline = L.polyline(geometry, { color: 'blue' }).addTo(map);
+    map.fitBounds(polyline.getBounds());
+
+    geometry.forEach(coord => {
+      L.circleMarker(coord, { radius: 4 }).addTo(map);
+    });
+  }
+</script>
+{% endblock %}

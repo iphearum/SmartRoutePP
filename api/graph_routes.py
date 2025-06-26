@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request
+from typing import Optional
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import HTMLResponse
 from networkx.readwrite import json_graph
 from shapely.geometry import LineString
 from services.graph_helper import GraphHelper
@@ -11,6 +13,16 @@ from fastapi.templating import Jinja2Templates
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")  # Path to templates folder
 
+
+def normalize_geometry(geometry):
+    fixed = []
+    for coord in geometry:
+        lat, lon = coord
+        # Flip if lat is > 90 or < -90 (impossible lat value)
+        if lat > 90 or lat < -90:
+            lat, lon = lon, lat
+        fixed.append([lat, lon])
+    return fixed
 def serialize_linestring(obj):
     if isinstance(obj, LineString):
         return list(obj.coords)
@@ -23,39 +35,18 @@ def get_data(G):
             edge["geometry"] = serialize_linestring(edge["geometry"])
     return data
 
+def get_geometry_from_ids(app: FastAPI, start_id: int, end_id: int):
+    G = app.state.G
+    data = get_data(G)
+    router = RouterEngine(data)
+    result = router.route(start_id, end_id)
+    return result["geometry"]
+
+
 @router.get("/")
 def read_root(request: Request):
     G = request.app.state.G
     return get_data(G)
-
-@router.get("/test_point")
-def test_point_ops(request: Request, osmid: int):
-    G = request.app.state.G
-    data = json_graph.node_link_data(G, edges="links")  # ← Add this
-    for edge in data.get("links", []):
-        if "geometry" in edge:
-            edge["geometry"] = serialize_linestring(edge["geometry"])
-    helper = GraphHelper(data)
-    
-    latlon = helper.get_point_from_osmid(osmid)
-    if not latlon:
-        return {"error": "OSM ID not found"}
-    
-    point = helper.create_point(latlon)
-    on_node = helper.is_point_on_node(point)
-
-    for u, v, data in G.edges(data=True):
-        if "geometry" in data:
-            geom = data["geometry"]
-            on_edge = helper.is_point_on_edge(point, geom)
-            dist = helper.distance_to_edge(point, geom)
-            return {
-                "on_node": on_node,
-                "on_edge": on_edge,
-                "distance_to_edge": dist
-            }
-
-    return {"message": "No geometry found on edges"}
 
 
 @router.get('/getPoint')
@@ -65,29 +56,6 @@ def get_point_from_id(request: Request, id: int):
     NodeData = data.get("nodes")
     graph = GraphHelper(NodeData)
     return graph.get_point_from_node_id(id)
-  
-@router.get("/adjlist")
-def get_adj_list(request: Request): 
-    G = request.app.state.G
-    data = get_data(G)
-
-    adj_list = {}
-
-    for edge in data.get("links", []): 
-        src = edge["source"]
-        tgt = edge["target"]
-
-        # Use geometry-based length if available
-        if "geometry" in edge:
-            coords = [(lon, lat) for lat, lon in edge["geometry"]]  # Flip to (x, y)
-            line = LineString(coords)
-            length = line.length
-        else:
-            length = edge.get("length", 1)
-
-        adj_list.setdefault(src, []).append({"to": tgt, "length": length})
-
-    return adj_list
 
 @router.get("/getAdj")
 def getAdjList(request: Request): 
@@ -114,28 +82,39 @@ def get_route(request: Request, start_id: int, end_id: int):
         return {"error": f"{type(e).__name__}: {e}"}
     
 
-@router.get("/map_route")
-def map_route(request: Request, start_id: int, end_id: int):
-    G = request.app.state.G
-
-    # Use safe graph data with serialized geometry
-    data = get_data(G)
-
-    # Compute route using RouterEngine
-    router = RouterEngine(data)
-    result = router.route(start_id, end_id)  # contains "path" and "geometry"
-
-    return templates.TemplateResponse("map_route.html", {
+@router.get("/map", response_class=HTMLResponse)
+def render_map(request: Request, start_id: Optional[int] = None, end_id: Optional[int] = None):
+    return templates.TemplateResponse("map.html", {
         "request": request,
-        "geometry": result["geometry"],  # Pass to Jinja2 for Leaflet rendering
-        "start": result["geometry"][0],
-        "end": result["geometry"][-1],
-        "path": result["path"]
+        "start_id": start_id,
+        "end_id": end_id
     })
 
+@router.get("/request-route" ,response_class=HTMLResponse, name="request-route")
+def request_route(request: Request): 
+    return templates.TemplateResponse("route_form.html", {"request": request})
 
-@router.get("/input-data")
-def input_map(request: Request): 
-    return templates.TemplateResponse("map_route.html", {
-        "request": request
+@router.get("/base")
+def request_route(request: Request): 
+    return templates.TemplateResponse("base.html", {"request": request})
+
+@router.get("/visual", response_class=HTMLResponse)
+def visual_map(request: Request, start_id: int , end_id: int ): 
+    print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
+    G = request.app.state.G
+    data = get_data(G)
+    router = RouterEngine(data)
+
+    try:
+        result = router.route(start_id, end_id)
+        geometry = normalize_geometry(result["geometry"])
+        return templates.TemplateResponse("map_view.html", {
+        "request": request,
+        "start_id": start_id,
+        "end_id": end_id,
+        "geometry": geometry
     })
+    except Exception as e:
+        print("❌ Exception occurred:")
+        traceback.print_exc()  # <--- ADD THIS LINE
+        return {"error": f"{type(e).__name__}: {e}"}

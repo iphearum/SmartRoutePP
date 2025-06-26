@@ -26,3 +26,16 @@ def show_map(request: Request, lat: float = 11.5564, lon: float = 104.9282):
         "lat": lat,
         "lon": lon
     })
+
+@app.get("/home", response_class=HTMLResponse, name="home")
+async def home(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request, "active_page": "home"})
+
+@app.get("/about", response_class=HTMLResponse, name="about")
+async def about(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request, "active_page": "about"})
+
+@app.get("/contact", response_class=HTMLResponse, name="contact")
+async def contact(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request, "active_page": "contact"})
+
