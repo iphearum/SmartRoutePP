@@ -55,7 +55,7 @@ class RouterEngine:
         path.reverse()
 
         if len(path) == 1 and path[0] != target:
-            raise ValueError(f"❌ Cannot reconstruct path to {target}")
+            raise ValueError(f"Cannot reconstruct path to {target}")
 
         return path
 

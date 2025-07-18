@@ -11,12 +11,17 @@ templates = Jinja2Templates(directory="templates")  # Path to templates folder
 def load_graph():
     import osmnx as ox
     try:
-        app.state.G = ox.load_graphml("phnom_penh.graphml")
+        app.state.G = ox.load_graphml("my_phnom_penh.graphml")
     except:
         app.state.G = ox.graph_from_place("Phnom Penh, Cambodia", network_type="drive")
+      
         ox.save_graphml(app.state.G, "phnom_penh.graphml")
-
+#embedded file 
 app.include_router(router)
+
+#1. Test and complete the fasting:  
+#3. Visualization: connect front and back 
+#2. embdeded 
 
 # Route to display map with a point
 @app.get("/map", response_class=HTMLResponse)

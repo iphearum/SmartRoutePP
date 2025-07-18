@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from networkx.readwrite import json_graph
 from shapely.geometry import LineString
@@ -8,113 +8,154 @@ from services.route_finder import RouterEngine
 import traceback
 from fastapi.templating import Jinja2Templates
 
-
-
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")  # Path to templates folder
+templates = Jinja2Templates(directory="templates")
 
-
+# Utility functions
 def normalize_geometry(geometry):
-    fixed = []
-    for coord in geometry:
-        lat, lon = coord
-        # Flip if lat is > 90 or < -90 (impossible lat value)
-        if lat > 90 or lat < -90:
-            lat, lon = lon, lat
-        fixed.append([lat, lon])
-    return fixed
-def serialize_linestring(obj):
-    if isinstance(obj, LineString):
-        return list(obj.coords)
-    return obj
+    """Ensure coordinates are in correct (lat, lon) order."""
+    return [[lon, lat] if lat > 90 or lat < -90 else [lat, lon] 
+            for lat, lon in geometry]
 
-def get_data(G): 
+def serialize_linestring(obj):
+    #Convert LineString to coordinate list.
+    return list(obj.coords) if isinstance(obj, LineString) else obj
+
+def get_graph_data(G):
+    #Serialize graph data with proper geometry handling.
     data = json_graph.node_link_data(G, edges="links")
-    for edge in data.get("links", []): 
-        if "geometry" in edge: 
+    for edge in data.get("links", []):
+        if "geometry" in edge:
             edge["geometry"] = serialize_linestring(edge["geometry"])
     return data
 
-def get_geometry_from_ids(app: FastAPI, start_id: int, end_id: int):
-    G = app.state.G
-    data = get_data(G)
-    router = RouterEngine(data)
-    result = router.route(start_id, end_id)
-    return result["geometry"]
+def get_router_engine(request: Request) -> RouterEngine:
+    return RouterEngine(get_graph_data(request.app.state.G))
 
+def get_graph_helper(request: Request) -> GraphHelper:
+    data = get_graph_data(request.app.state.G)
+    return GraphHelper(data)  
+
+# Route handlers
+@router.get("/readroot")
+def read_root(request: Request):
+    return get_graph_data(request.app.state.G)
 
 @router.get("/")
-def read_root(request: Request):
-    G = request.app.state.G
-    return get_data(G)
-
+def homepage(request: Request):
+    return templates.TemplateResponse("base.html", {"request": request})
 
 @router.get('/getPoint')
-def get_point_from_id(request: Request, id: int): 
-    G = request.app.state.G 
-    data = get_data(G)
-    NodeData = data.get("nodes")
-    graph = GraphHelper(NodeData)
-    return graph.get_point_from_node_id(id)
+def get_point_from_id(request: Request, id: int):
+    return get_graph_helper(request).get_point_from_node_id(id)
 
 @router.get("/getAdj")
-def getAdjList(request: Request): 
-    G = request.app.state.G 
-    data = get_data(G)
-
-    routeFinder = RouterEngine(data)
-    return routeFinder.build_adjacency_list()
-
+def get_adjacency_list(request: Request):
+    return get_router_engine(request).build_adjacency_list()
 
 @router.get("/route")
 def get_route(request: Request, start_id: int, end_id: int):
     print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
-    G = request.app.state.G
-    data = get_data(G)
-    router = RouterEngine(data)
-
     try:
-        result = router.route(start_id, end_id)
-        return result
+        return get_router_engine(request).route(start_id, end_id)
     except Exception as e:
-        print("❌ Exception occurred:")
-        traceback.print_exc()  # <--- ADD THIS LINE
+        print("Exception occurred:")
+        traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
-    
 
 @router.get("/map", response_class=HTMLResponse)
-def render_map(request: Request, start_id: Optional[int] = None, end_id: Optional[int] = None):
+def render_map(
+    request: Request, 
+    start_id: Optional[int] = None, 
+    end_id: Optional[int] = None
+):
+    """Render map view."""
     return templates.TemplateResponse("map.html", {
         "request": request,
         "start_id": start_id,
         "end_id": end_id
     })
 
-@router.get("/request-route" ,response_class=HTMLResponse, name="request-route")
-def request_route(request: Request): 
+@router.get("/request-route", response_class=HTMLResponse, name="request-route")
+def request_route(request: Request):
     return templates.TemplateResponse("route_form.html", {"request": request})
 
 @router.get("/base")
-def request_route(request: Request): 
+def base_page(request: Request):
     return templates.TemplateResponse("base.html", {"request": request})
 
 @router.get("/visual", response_class=HTMLResponse)
-def visual_map(request: Request, start_id: int , end_id: int ): 
+def visual_map(request: Request, start_id: int, end_id: int):
+    """Visual route map view."""
     print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
-    G = request.app.state.G
-    data = get_data(G)
-    router = RouterEngine(data)
-
     try:
-        result = router.route(start_id, end_id)
+        result = get_router_engine(request).route(start_id, end_id)
         geometry = normalize_geometry(result["geometry"])
         return templates.TemplateResponse("map_view.html", {
-        "request": request,
-        "start_id": start_id,
-        "end_id": end_id,
-        "geometry": geometry
-    })
+            "request": request,
+            "start_id": start_id,
+            "end_id": end_id,
+            "geometry": geometry
+        })
     except Exception as e:
-        print("❌ Exception occurred:")
-        traceback.print_exc()  # <--- ADD THIS LINE
+        print("Exception occurred:")
+        traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
+
+@router.get("/point_on_edge")
+def is_on_edge(request: Request, lat: float, lon: float):
+    return get_graph_helper(request).is_point_on_edge(lat, lon)
+
+@router.get("/distance")
+def distance_to_point(request: Request, lat: float, lon: float):
+    return get_graph_helper(request).distance_to_the_point(lat, lon)
+
+
+#testing new route 
+@router.get("/temp_route")
+def route_from_temp_point(
+    request: Request,
+    lat: float,
+    lon: float,
+    dest_id: int
+):
+    try:
+        graph_helper = get_graph_helper(request)
+        source_id = graph_helper.add_temp_point(lat, lon)
+        router_engine = RouterEngine(graph_helper.get_graph()) 
+        # graph_helper = get_graph_helper(request)
+
+        # source_id = graph_helper.add_temp_point(lat, lon)
+        print(source_id)
+
+        updated_graph = graph_helper.get_graph()
+        router_engine = RouterEngine(updated_graph)
+
+        result = router_engine.route(source_id, dest_id)
+
+        result["geometry"] = normalize_geometry(result["geometry"])
+
+        return {
+            "start_temp_id": source_id,
+            "end_id": dest_id,
+            "geometry": result["geometry"],
+            "path": result.get("path"),
+            "length": result.get("length")
+        }
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": f"{type(e).__name__}: {e}"}
+    
+
+#testing new route - test 
+@router.get("/closest-node")
+def route_from_temp_point(
+    request: Request,
+    lat: float,
+    lon: float):
+    graph_helper = get_graph_helper(request)
+    id = graph_helper.closest_node(lat, lon)
+    return id
+
+
