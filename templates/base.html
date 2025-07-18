@@ -28,7 +28,10 @@
           <a class="nav-link {% if active_page == 'contact' %}active{% endif %}" href="{{ url_for('contact') }}">Contact</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {% if active_page == 'request-route' %}active{% endif %}" href="{{ url_for('request-route') }}">Route</a>
+          <a class="nav-link {% if active_page == 'request-route-id' %}active{% endif %}" href="{{ url_for('request-route-id') }}">Route-ID</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if active_page == 'request-route-latlon' %}active{% endif %}" href="{{ url_for('request-route-latlon') }}">Route-latlon</a>
         </li>
       </ul>
     </div>

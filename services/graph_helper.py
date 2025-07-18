@@ -21,8 +21,7 @@ class GraphHelper:
         combined["links"].extend(self.temp_edges)
         return combined
 
-    def add_temp_point(self, lat: float, lon: float, connect=True, connection_distance=0.01):
-        #new_id = min([n.get('id', 0) for n in self.temp_graph["nodes"]] + [0]) - 1
+    def add_temp_point(self, lat: float, lon: float, connect=True, connection_distance=0.0005):
         all_ids = [n.get('id', 0) for n in self.original_graph["nodes"]] + [n.get('id', 0) for n in self.temp_nodes]
         new_id = min(all_ids + [0]) - 1
 

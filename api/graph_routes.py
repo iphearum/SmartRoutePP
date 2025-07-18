@@ -22,7 +22,6 @@ def serialize_linestring(obj):
     return list(obj.coords) if isinstance(obj, LineString) else obj
 
 def get_graph_data(G):
-    #Serialize graph data with proper geometry handling.
     data = json_graph.node_link_data(G, edges="links")
     for edge in data.get("links", []):
         if "geometry" in edge:
@@ -76,9 +75,13 @@ def render_map(
         "end_id": end_id
     })
 
-@router.get("/request-route", response_class=HTMLResponse, name="request-route")
+@router.get("/request-route-id", response_class=HTMLResponse, name="request-route-id")
 def request_route(request: Request):
     return templates.TemplateResponse("route_form.html", {"request": request})
+
+@router.get("/request-route-latlon", response_class=HTMLResponse, name="request-route-latlon")
+def request_route(request: Request):
+    return templates.TemplateResponse("route-request.html", {"request": request})
 
 @router.get("/base")
 def base_page(request: Request):
@@ -123,10 +126,9 @@ def route_from_temp_point(
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(lat, lon)
         router_engine = RouterEngine(graph_helper.get_graph()) 
-        # graph_helper = get_graph_helper(request)
-
-        # source_id = graph_helper.add_temp_point(lat, lon)
+       
         print(source_id)
+
 
         updated_graph = graph_helper.get_graph()
         router_engine = RouterEngine(updated_graph)
@@ -135,13 +137,19 @@ def route_from_temp_point(
 
         result["geometry"] = normalize_geometry(result["geometry"])
 
-        return {
-            "start_temp_id": source_id,
+        # return {
+        #     "start_temp_id": source_id,
+        #     "end_id": dest_id,
+        #     "geometry": result["geometry"],
+        #     "path": result.get("path"),
+        #     "length": result.get("length")
+        # }
+        return templates.TemplateResponse("map_view.html", {
+            "request": request,
+            "start_id": source_id,
             "end_id": dest_id,
-            "geometry": result["geometry"],
-            "path": result.get("path"),
-            "length": result.get("length")
-        }
+            "geometry": result["geometry"]
+        })
 
     except Exception as e:
         traceback.print_exc()
@@ -159,3 +167,43 @@ def route_from_temp_point(
     return id
 
 
+# have to work on this and do testing 
+@router.get("/full_temp_route")
+def full_route_from_temp_point(
+    request: Request,
+    s_lat: float,
+    s_lon: float,
+    d_lat: float,
+    d_lon: float
+):
+    try:
+        graph_helper = get_graph_helper(request)
+        source_id = graph_helper.add_temp_point(s_lat, s_lon)
+        dest_id = graph_helper.add_temp_point(d_lat, d_lon)
+        router_engine = RouterEngine(graph_helper.get_graph(include_temp=True)) 
+        
+
+        updated_graph = graph_helper.get_graph(include_temp=True)
+        router_engine = RouterEngine(updated_graph)
+
+        result = router_engine.route(source_id, dest_id)
+
+        result["geometry"] = normalize_geometry(result["geometry"])
+
+        # return {
+        #     "start_temp_id": source_id,
+        #     "end_id": dest_id,
+        #     "geometry": result["geometry"],
+        #     "path": result.get("path"),
+        #     "length": result.get("length")
+        # }
+        return templates.TemplateResponse("map_view.html", {
+            "request": request,
+            "start_id": source_id,
+            "end_id": dest_id,
+            "geometry": result["geometry"]
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": f"{type(e).__name__}: {e}"}
