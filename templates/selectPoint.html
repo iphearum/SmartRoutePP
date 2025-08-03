@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Find Route | MyApp{% endblock %}
+
+{% block content %}
+<style>
+  #map {
+    height: 400px;
+    width: 100%;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+  }
+</style>
+
+<div class="row justify-content-center">
+  <div class="col-md-10 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="card-title mb-4">Select Start and Destination</h4>
+
+        <form method="POST" action="/full_temp_route">
+          <div class="mb-3">
+            <label for="start_point" class="form-label">Start Point</label>
+            <input type="text" id="start_point" class="form-control" placeholder="Click here, then pick on map" readonly>
+          </div>
+
+          <div class="mb-3">
+            <label for="end_point" class="form-label">Destination</label>
+            <input type="text" id="end_point" class="form-control" placeholder="Click here, then pick on map" readonly>
+          </div>
+
+          <div class="mb-3">
+            <div id="map"></div>
+          </div>
+
+          <!-- Hidden inputs for POST -->
+          <input type="hidden" name="s_lat" id="start_lat">
+          <input type="hidden" name="s_lon" id="start_lng">
+          <input type="hidden" name="d_lat" id="end_lat">
+          <input type="hidden" name="d_lon" id="end_lng">
+
+          <!-- Submit Button -->
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary w-100">Submit Route</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leaflet Map Script -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  const map = L.map('map').setView([11.5564, 104.9282], 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  setTimeout(() => {
+    map.invalidateSize();
+  }, 0);
+
+  let selecting = null;
+  let startMarker = null;
+  let endMarker = null;
+
+  document.getElementById('start_point').addEventListener('focus', () => {
+    selecting = "start";
+  });
+
+  document.getElementById('end_point').addEventListener('focus', () => {
+    selecting = "end";
+  });
+
+  map.on('click', function (e) {
+    const lat = e.latlng.lat.toFixed(6);
+    const lng = e.latlng.lng.toFixed(6);
+
+    if (!selecting) {
+      alert("Please click on a field first (Start or Destination)");
+      return;
+    }
+
+    if (selecting === "start") {
+      if (startMarker) {
+        startMarker.setLatLng(e.latlng);
+      } else {
+        startMarker = L.marker(e.latlng, {
+          icon: L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            iconSize: [32, 32]
+          })
+        }).addTo(map);
+      }
+
+      document.getElementById('start_point').value = `${lat}, ${lng}`;
+      document.getElementById('start_lat').value = lat;
+      document.getElementById('start_lng').value = lng;
+
+    } else if (selecting === "end") {
+      if (endMarker) {
+        endMarker.setLatLng(e.latlng);
+      } else {
+        endMarker = L.marker(e.latlng, {
+          icon: L.icon({
+            iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            iconSize: [32, 32]
+          })
+        }).addTo(map);
+      }
+
+      document.getElementById('end_point').value = `${lat}, ${lng}`;
+      document.getElementById('end_lat').value = lat;
+      document.getElementById('end_lng').value = lng;
+    }
+  });
+</script>
+{% endblock %}

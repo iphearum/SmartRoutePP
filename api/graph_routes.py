@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from networkx.readwrite import json_graph
 from shapely.geometry import LineString
@@ -168,13 +168,13 @@ def route_from_temp_point(
 
 
 # have to work on this and do testing 
-@router.get("/full_temp_route")
-def full_route_from_temp_point(
+@router.post("/full_temp_route")
+async def full_route_from_temp_point(
     request: Request,
-    s_lat: float,
-    s_lon: float,
-    d_lat: float,
-    d_lon: float
+    s_lat: float = Form(...),
+    s_lon: float = Form(...),
+    d_lat: float = Form(...),
+    d_lon: float = Form(...)
 ):
     try:
         graph_helper = get_graph_helper(request)
@@ -207,3 +207,9 @@ def full_route_from_temp_point(
     except Exception as e:
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
+    
+@router.get("/selecting-route")
+def test_templates(request: Request): 
+    return templates.TemplateResponse("selectPoint.html", {
+        "request": request,
+    })
