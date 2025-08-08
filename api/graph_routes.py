@@ -1,3 +1,4 @@
+import time
 from typing import Optional
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
@@ -176,6 +177,7 @@ async def full_route_from_temp_point(
     d_lat: float = Form(...),
     d_lon: float = Form(...)
 ):
+    t0 = time.perf_counter()
     try:
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(s_lat, s_lon)
@@ -189,6 +191,7 @@ async def full_route_from_temp_point(
         result = router_engine.route(source_id, dest_id)
 
         result["geometry"] = normalize_geometry(result["geometry"])
+        duration_ms = (time.perf_counter() - t0) * 1000.0
 
         # return {
         #     "start_temp_id": source_id,
@@ -201,14 +204,15 @@ async def full_route_from_temp_point(
             "request": request,
             "start_id": source_id,
             "end_id": dest_id,
-            "geometry": result["geometry"]
+            "geometry": result["geometry"], 
+            "duration": duration_ms
         })
 
     except Exception as e:
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
     
-@router.get("/selecting-route")
+@router.get("/selecting-route", name = "selecting-route")
 def test_templates(request: Request): 
     return templates.TemplateResponse("selectPoint.html", {
         "request": request,

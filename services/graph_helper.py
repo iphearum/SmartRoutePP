@@ -39,19 +39,27 @@ class GraphHelper:
 
     def _connect_temp_point(self, node_id: int, lon: float, lat: float, max_distance: float = 0.005):
         point = Point(lon, lat)
-        for node in self.original_graph.get("nodes", []):
-            node_point = Point(node.get('x'), node.get('y'))  # lon = x, lat = y
-            if point.distance(node_point) <= max_distance:
-                self.temp_edges.append({
-                    'source': node_id,
-                    'target': node.get('id'),
-                    'temp': True
-                })
-                self.temp_edges.append({
-                    'source': node.get('id'),
-                    'target': node_id,
-                    'temp': True
-                })
+        found = False
+        attempts = 0
+        while not found and attempts < 5:
+            for node in self.original_graph.get("nodes", []): 
+                node_point = Point(node.get('x'), node.get('y'))
+                if point.distance(node_point) <= max_distance:
+                    self.temp_edges.append({
+                        'source': node_id,
+                        'target': node.get('id'),
+                        'temp': True
+                    })
+                    self.temp_edges.append({
+                        'source': node.get('id'),
+                        'target': node_id,
+                        'temp': True
+                    })
+                    found = True
+                    break
+            if not found:
+                max_distance *= 2
+                attempts += 1
 
     def clear_temp_points(self):
         self.temp_nodes = []

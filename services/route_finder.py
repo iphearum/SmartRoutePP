@@ -95,9 +95,9 @@ class RouterEngine:
                 src = node_map.get(u)
                 tgt = node_map.get(v)
                 if not src:
-                    raise ValueError(f"❌ Missing node in node_map: {u}")
+                    raise ValueError(f"Missing node in node_map: {u}")
                 if not tgt:
-                    raise ValueError(f"❌ Missing node in node_map: {v}")
+                    raise ValueError(f"Missing node in node_map: {v}")
                 geometry.append([src["y"], src["x"]])
                 geometry.append([tgt["y"], tgt["x"]])
 
