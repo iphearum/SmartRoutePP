@@ -179,36 +179,33 @@ async def full_route_from_temp_point(
 ):
     t0 = time.perf_counter()
     try:
+        # Initialize GraphHelper and add temporary points
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(s_lat, s_lon)
         dest_id = graph_helper.add_temp_point(d_lat, d_lon)
-        router_engine = RouterEngine(graph_helper.get_graph(include_temp=True)) 
-        
 
+        # Get updated graph with temporary points included
         updated_graph = graph_helper.get_graph(include_temp=True)
         router_engine = RouterEngine(updated_graph)
 
+        # Calculate the route
         result = router_engine.route(source_id, dest_id)
-
         result["geometry"] = normalize_geometry(result["geometry"])
+
+        # Calculate duration for performance monitoring
         duration_ms = (time.perf_counter() - t0) * 1000.0
 
-        # return {
-        #     "start_temp_id": source_id,
-        #     "end_id": dest_id,
-        #     "geometry": result["geometry"],
-        #     "path": result.get("path"),
-        #     "length": result.get("length")
-        # }
+        # Render the result in the map view template
         return templates.TemplateResponse("map_view.html", {
             "request": request,
             "start_id": source_id,
             "end_id": dest_id,
-            "geometry": result["geometry"], 
+            "geometry": result["geometry"],
             "duration": duration_ms
         })
 
     except Exception as e:
+        # Log the exception and return an error response
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
     
