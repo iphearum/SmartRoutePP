@@ -1,16 +1,28 @@
 import time
 from typing import Optional
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from networkx.readwrite import json_graph
 from shapely.geometry import LineString
 from services.graph_helper import GraphHelper
 from services.route_finder import RouterEngine
 import traceback
+import logging
 from fastapi.templating import Jinja2Templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+# Input validation helper
+def validate_coordinates(lat: float, lon: float):
+    """Validate latitude and longitude values."""
+    if not (-90 <= lat <= 90):
+        raise HTTPException(status_code=400, detail=f"Invalid latitude: {lat}. Must be between -90 and 90.")
+    if not (-180 <= lon <= 180):
+        raise HTTPException(status_code=400, detail=f"Invalid longitude: {lon}. Must be between -180 and 180.")
+    return True
 
 # Utility functions
 def normalize_geometry(geometry):
@@ -55,11 +67,15 @@ def get_adjacency_list(request: Request):
 
 @router.get("/route")
 def get_route(request: Request, start_id: int, end_id: int):
-    print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
+    logger.info(f"Route requested: start_id={start_id}, end_id={end_id}")
+    t0 = time.perf_counter()
     try:
-        return get_router_engine(request).route(start_id, end_id)
+        result = get_router_engine(request).route(start_id, end_id)
+        duration_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"Route calculated in {duration_ms:.2f}ms")
+        return result
     except Exception as e:
-        print("Exception occurred:")
+        logger.error(f"Route calculation failed: {type(e).__name__}: {e}")
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
 
@@ -81,7 +97,7 @@ def request_route(request: Request):
     return templates.TemplateResponse("route_form.html", {"request": request})
 
 @router.get("/request-route-latlon", response_class=HTMLResponse, name="request-route-latlon")
-def request_route(request: Request):
+def request_route_latlon(request: Request):
     return templates.TemplateResponse("route-request.html", {"request": request})
 
 @router.get("/base")
@@ -91,10 +107,13 @@ def base_page(request: Request):
 @router.get("/visual", response_class=HTMLResponse)
 def visual_map(request: Request, start_id: int, end_id: int):
     """Visual route map view."""
-    print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
+    logger.info(f"Visual route requested: start_id={start_id}, end_id={end_id}")
+    t0 = time.perf_counter()
     try:
         result = get_router_engine(request).route(start_id, end_id)
         geometry = normalize_geometry(result["geometry"])
+        duration_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"Visual route calculated in {duration_ms:.2f}ms")
         return templates.TemplateResponse("map_view.html", {
             "request": request,
             "start_id": start_id,
@@ -102,16 +121,18 @@ def visual_map(request: Request, start_id: int, end_id: int):
             "geometry": geometry
         })
     except Exception as e:
-        print("Exception occurred:")
+        logger.error(f"Visual route calculation failed: {type(e).__name__}: {e}")
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
 
 @router.get("/point_on_edge")
 def is_on_edge(request: Request, lat: float, lon: float):
+    validate_coordinates(lat, lon)
     return get_graph_helper(request).is_point_on_edge(lat, lon)
 
 @router.get("/distance")
 def distance_to_point(request: Request, lat: float, lon: float):
+    validate_coordinates(lat, lon)
     return get_graph_helper(request).distance_to_the_point(lat, lon)
 
 
@@ -124,6 +145,7 @@ def route_from_temp_point(
     dest_id: int
 ):
     try:
+        validate_coordinates(lat, lon)
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(lat, lon)
         router_engine = RouterEngine(graph_helper.get_graph()) 
@@ -138,13 +160,6 @@ def route_from_temp_point(
 
         result["geometry"] = normalize_geometry(result["geometry"])
 
-        # return {
-        #     "start_temp_id": source_id,
-        #     "end_id": dest_id,
-        #     "geometry": result["geometry"],
-        #     "path": result.get("path"),
-        #     "length": result.get("length")
-        # }
         return templates.TemplateResponse("map_view.html", {
             "request": request,
             "start_id": source_id,
@@ -159,10 +174,11 @@ def route_from_temp_point(
 
 #testing new route - test 
 @router.get("/closest-node")
-def route_from_temp_point(
+def get_closest_node(
     request: Request,
     lat: float,
     lon: float):
+    validate_coordinates(lat, lon)
     graph_helper = get_graph_helper(request)
     id = graph_helper.closest_node(lat, lon)
     return id
@@ -178,7 +194,12 @@ async def full_route_from_temp_point(
     d_lon: float = Form(...)
 ):
     t0 = time.perf_counter()
+    logger.info(f"Full temp route requested: ({s_lat}, {s_lon}) to ({d_lat}, {d_lon})")
     try:
+        # Validate input coordinates
+        validate_coordinates(s_lat, s_lon)
+        validate_coordinates(d_lat, d_lon)
+        
         # Initialize GraphHelper and add temporary points
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(s_lat, s_lon)
@@ -194,6 +215,7 @@ async def full_route_from_temp_point(
 
         # Calculate duration for performance monitoring
         duration_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"Full temp route calculated in {duration_ms:.2f}ms")
 
         # Render the result in the map view template
         return templates.TemplateResponse("map_view.html", {
@@ -206,6 +228,7 @@ async def full_route_from_temp_point(
 
     except Exception as e:
         # Log the exception and return an error response
+        logger.error(f"Full temp route calculation failed: {type(e).__name__}: {e}")
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
     

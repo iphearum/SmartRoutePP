@@ -1,10 +1,13 @@
 from shapely.geometry import Point, LineString
 import heapq
+from functools import lru_cache
 
 class RouterEngine:
     def __init__(self, graph_data):
         self.graph_data = graph_data
         self.adj = self.build_adjacency_list()
+        # Create a hashable representation for caching
+        self._graph_hash = hash(str(sorted([(n["id"], n.get("x"), n.get("y")) for n in graph_data["nodes"]])))
 
     def build_adjacency_list(self):
         adj = {}
@@ -18,7 +21,12 @@ class RouterEngine:
                 adj.setdefault(tgt, []).append((src, length))
         return adj
 
-    def dijkstra(self, start):
+    @lru_cache(maxsize=128)
+    def _cached_dijkstra(self, start, graph_hash):
+        """Cached version of dijkstra for performance."""
+        return self._dijkstra_impl(start)
+    
+    def _dijkstra_impl(self, start):
         # Include ALL nodes, not just the ones in self.adj
         all_nodes = {n["id"] for n in self.graph_data["nodes"]}
         
@@ -43,6 +51,13 @@ class RouterEngine:
 
         return distances, previous
 
+    def dijkstra(self, start):
+        # Use cached version if no temporary nodes, otherwise use direct implementation
+        if any(n.get("temp", False) for n in self.graph_data["nodes"]):
+            return self._dijkstra_impl(start)
+        else:
+            return self._cached_dijkstra(start, self._graph_hash)
+
 
     def reconstruct_path(self, previous, target):
         path = []
@@ -60,9 +75,12 @@ class RouterEngine:
         return path
 
     def route(self, start_id, end_id):
-        if start_id not in self.adj:
+        # Check if nodes exist in the graph
+        all_node_ids = {n["id"] for n in self.graph_data["nodes"]}
+        
+        if start_id not in all_node_ids:
             raise ValueError(f"Start node {start_id} not found in graph.")
-        if end_id not in self.adj:
+        if end_id not in all_node_ids:
             raise ValueError(f"End node {end_id} not found in graph.")
 
         _, previous = self.dijkstra(start_id)

@@ -7,8 +7,7 @@ class GraphHelper:
         if isinstance(graph, list):
             raise TypeError("Expected graph to be a dict with 'nodes' and 'links', but got a list.")
         self.graph = graph
-        self.original_graph = deepcopy(graph)
-        self.temp_graph = deepcopy(graph)
+        self.original_graph = graph  # Keep reference instead of deepcopy
         self.temp_nodes = []
         self.temp_edges = []
 
@@ -16,9 +15,15 @@ class GraphHelper:
         if not include_temp:
             return self.graph
         
-        combined = deepcopy(self.temp_graph)
-        combined["nodes"].extend(self.temp_nodes)
-        combined["links"].extend(self.temp_edges)
+        # Only create copy when temporary data exists
+        if not self.temp_nodes and not self.temp_edges:
+            return self.graph
+            
+        combined = {
+            "nodes": self.graph["nodes"] + self.temp_nodes,
+            "links": self.graph["links"] + self.temp_edges,
+            "directed": self.graph.get("directed", True)
+        }
         return combined
 
     def add_temp_point(self, lat: float, lon: float, connect=True, connection_distance=0.0005):
@@ -64,7 +69,6 @@ class GraphHelper:
     def clear_temp_points(self):
         self.temp_nodes = []
         self.temp_edges = []
-        self.temp_graph = deepcopy(self.original_graph)
 
     def prepare_for_routing(self, source_lat: float, source_lon: float,
                             target_lat: float, target_lon: float):
@@ -140,6 +144,24 @@ class GraphHelper:
                 closest_node_id = node['id']
 
         return closest_node_id
+
+    def distance_to_the_point(self, lat: float, lon: float):
+        """Find the distance from the given point to the closest node in the graph."""
+        closest_id = self.closest_node(lat, lon)
+        if closest_id is None:
+            return None
+            
+        # Find the closest node coordinates
+        for node in self.graph.get("nodes", []):
+            if node.get('id') == closest_id:
+                node_lat = node.get('y')
+                node_lon = node.get('x')
+                return {
+                    "closest_node_id": closest_id,
+                    "distance_meters": self.__haversine(lon, lat, node_lon, node_lat),
+                    "node_coordinates": {"lat": node_lat, "lon": node_lon}
+                }
+        return None
 
     # helper method calculate the distance between lat and lon
     def __haversine(self, lon1, lat1, lon2, lat2):
