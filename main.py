@@ -1,18 +1,15 @@
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from contextlib import asynccontextmanager
 from api.graph_routes import router
 import networkx as nx
 import osmnx as ox
 
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")  # Path to templates folder
 
-# Load your graph at startup
-
-
-@app.on_event("startup")
-def load_graph():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Load graph
     try:
         G_osm = ox.load_graphml("my_phnom_penh.graphml")
     except:
@@ -20,33 +17,21 @@ def load_graph():
             "Phnom Penh, Cambodia", network_type="drive")
         ox.save_graphml(G_osm, "my_phnom_penh.graphml")
 
-    # try:
-    #     # Load your embedded custom graph
-    #     G_custom = ox.load_graphml("embedded.graphml")
-    # except FileNotFoundError:
-    #     print("embedded.graphml not found. Proceeding without it.")
-    #     G_custom = nx.MultiDiGraph()
-
-    #  # Combine both graphs
-    # G_combined = nx.compose(G_osm, G_custom)
-
-    # # Save the combined graph if needed
-    # ox.save_graphml(G_combined, "combined.graphml")
-
     # Store it in app state
     app.state.G = G_osm
+    
+    yield
+    
+    # Shutdown: cleanup if needed
+    pass
 
 
-"""
-app.state : special place provided by FastAPI (inherited from Starlette) to store custom application-level 
-    state.
-"""
-# embedded file
+app = FastAPI(lifespan=lifespan)
+templates = Jinja2Templates(directory="templates")  # Path to templates folder
+
+
+# Include API routes
 app.include_router(router)
-
-# 1. Test and complete the fasting:
-# 3. Visualization: connect front and back
-# 2. embdeded
 
 
 @app.get("/home", response_class=HTMLResponse, name="home")

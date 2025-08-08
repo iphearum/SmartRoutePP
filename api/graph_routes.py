@@ -1,6 +1,6 @@
 import time
 from typing import Optional
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from networkx.readwrite import json_graph
 from shapely.geometry import LineString
@@ -11,6 +11,15 @@ from fastapi.templating import Jinja2Templates
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+# Input validation helper
+def validate_coordinates(lat: float, lon: float):
+    """Validate latitude and longitude values."""
+    if not (-90 <= lat <= 90):
+        raise HTTPException(status_code=400, detail=f"Invalid latitude: {lat}. Must be between -90 and 90.")
+    if not (-180 <= lon <= 180):
+        raise HTTPException(status_code=400, detail=f"Invalid longitude: {lon}. Must be between -180 and 180.")
+    return True
 
 # Utility functions
 def normalize_geometry(geometry):
@@ -81,7 +90,7 @@ def request_route(request: Request):
     return templates.TemplateResponse("route_form.html", {"request": request})
 
 @router.get("/request-route-latlon", response_class=HTMLResponse, name="request-route-latlon")
-def request_route(request: Request):
+def request_route_latlon(request: Request):
     return templates.TemplateResponse("route-request.html", {"request": request})
 
 @router.get("/base")
@@ -108,10 +117,12 @@ def visual_map(request: Request, start_id: int, end_id: int):
 
 @router.get("/point_on_edge")
 def is_on_edge(request: Request, lat: float, lon: float):
+    validate_coordinates(lat, lon)
     return get_graph_helper(request).is_point_on_edge(lat, lon)
 
 @router.get("/distance")
 def distance_to_point(request: Request, lat: float, lon: float):
+    validate_coordinates(lat, lon)
     return get_graph_helper(request).distance_to_the_point(lat, lon)
 
 
@@ -124,6 +135,7 @@ def route_from_temp_point(
     dest_id: int
 ):
     try:
+        validate_coordinates(lat, lon)
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(lat, lon)
         router_engine = RouterEngine(graph_helper.get_graph()) 
@@ -138,13 +150,6 @@ def route_from_temp_point(
 
         result["geometry"] = normalize_geometry(result["geometry"])
 
-        # return {
-        #     "start_temp_id": source_id,
-        #     "end_id": dest_id,
-        #     "geometry": result["geometry"],
-        #     "path": result.get("path"),
-        #     "length": result.get("length")
-        # }
         return templates.TemplateResponse("map_view.html", {
             "request": request,
             "start_id": source_id,
@@ -159,10 +164,11 @@ def route_from_temp_point(
 
 #testing new route - test 
 @router.get("/closest-node")
-def route_from_temp_point(
+def get_closest_node(
     request: Request,
     lat: float,
     lon: float):
+    validate_coordinates(lat, lon)
     graph_helper = get_graph_helper(request)
     id = graph_helper.closest_node(lat, lon)
     return id
@@ -179,6 +185,10 @@ async def full_route_from_temp_point(
 ):
     t0 = time.perf_counter()
     try:
+        # Validate input coordinates
+        validate_coordinates(s_lat, s_lon)
+        validate_coordinates(d_lat, d_lon)
+        
         # Initialize GraphHelper and add temporary points
         graph_helper = get_graph_helper(request)
         source_id = graph_helper.add_temp_point(s_lat, s_lon)
