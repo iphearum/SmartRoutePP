@@ -7,7 +7,10 @@ from shapely.geometry import LineString
 from services.graph_helper import GraphHelper
 from services.route_finder import RouterEngine
 import traceback
+import logging
 from fastapi.templating import Jinja2Templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -64,11 +67,15 @@ def get_adjacency_list(request: Request):
 
 @router.get("/route")
 def get_route(request: Request, start_id: int, end_id: int):
-    print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
+    logger.info(f"Route requested: start_id={start_id}, end_id={end_id}")
+    t0 = time.perf_counter()
     try:
-        return get_router_engine(request).route(start_id, end_id)
+        result = get_router_engine(request).route(start_id, end_id)
+        duration_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"Route calculated in {duration_ms:.2f}ms")
+        return result
     except Exception as e:
-        print("Exception occurred:")
+        logger.error(f"Route calculation failed: {type(e).__name__}: {e}")
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
 
@@ -100,10 +107,13 @@ def base_page(request: Request):
 @router.get("/visual", response_class=HTMLResponse)
 def visual_map(request: Request, start_id: int, end_id: int):
     """Visual route map view."""
-    print(f"ROUTE requested: start_id={start_id}, end_id={end_id}")
+    logger.info(f"Visual route requested: start_id={start_id}, end_id={end_id}")
+    t0 = time.perf_counter()
     try:
         result = get_router_engine(request).route(start_id, end_id)
         geometry = normalize_geometry(result["geometry"])
+        duration_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"Visual route calculated in {duration_ms:.2f}ms")
         return templates.TemplateResponse("map_view.html", {
             "request": request,
             "start_id": start_id,
@@ -111,7 +121,7 @@ def visual_map(request: Request, start_id: int, end_id: int):
             "geometry": geometry
         })
     except Exception as e:
-        print("Exception occurred:")
+        logger.error(f"Visual route calculation failed: {type(e).__name__}: {e}")
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
 
@@ -184,6 +194,7 @@ async def full_route_from_temp_point(
     d_lon: float = Form(...)
 ):
     t0 = time.perf_counter()
+    logger.info(f"Full temp route requested: ({s_lat}, {s_lon}) to ({d_lat}, {d_lon})")
     try:
         # Validate input coordinates
         validate_coordinates(s_lat, s_lon)
@@ -204,6 +215,7 @@ async def full_route_from_temp_point(
 
         # Calculate duration for performance monitoring
         duration_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"Full temp route calculated in {duration_ms:.2f}ms")
 
         # Render the result in the map view template
         return templates.TemplateResponse("map_view.html", {
@@ -216,6 +228,7 @@ async def full_route_from_temp_point(
 
     except Exception as e:
         # Log the exception and return an error response
+        logger.error(f"Full temp route calculation failed: {type(e).__name__}: {e}")
         traceback.print_exc()
         return {"error": f"{type(e).__name__}: {e}"}
     
